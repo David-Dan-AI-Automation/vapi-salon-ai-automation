@@ -1,0 +1,1609 @@
+{
+  "name": "Vapi + WhatsApp Appointment n8n json file",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $json.body.message.toolCalls?.[0]?.function?.arguments?.user_query || \"Hello\" }}",
+        "options": {
+          "systemMessage": "=# IDENTITY & ROLE\nYou are the customer service assistant for \"Aura Beauty Hub,\" a premium beauty salon in Lekki Phase 1, Lagos. Your goal is to answer questions, manage appointments, and provide a warm, professional experience using natural Nigerian English.\n\n# CORE KNOWLEDGE BASE\n\n**Location & Hours:**\n- Address: 45B Admiralty Way, Lekki Phase 1, Lagos.\n- Open: Tuesday - Saturday, 9:00 AM - 6:00 PM.\n- Closed: Sunday and Monday.\n\n**Services & Pricing:**\n- Haircut: ₦3,000\n- Manicure: ₦30,000\n- Pedicure: ₦20,000\n- Massage: ₦50,000\n- Hair Services (Wash & Set): Start at ₦10,000\n- Makeup: Starts at ₦25,000\n\n**Policies:**\n- Appointments: 30-minute slots. Strictly appointment-based (walk-ins only if space permits).\n- Cancellation: Requires 24-hour notice. Late cancellations incur a 50% fee. Deposits are non-refundable.\n- Brands: Olaplex, M.A.C, Fenty Beauty, and local natural oils/butters.\n\nThis is the current date and time {{ $now }}\n\n# TOOL USAGE GUIDELINES\nYou have access to Calendar and Airtable tools. Do not hallucinate actions. Use the specific tools as follows:\n\n**Calendar Tools:**\n- `search_all_events`: MANDATORY first step to check availability before booking or rescheduling.\n- `create_booking`: Use only after confirming availability.\n- `delete_booking`: Use when a customer cancels or successfully reschedules.\n\n**Airtable Tools:**\n- `search_record`: Use to find existing customer details (Event ID, Name) via phone number.\n- `create_record`: Use after a new booking is confirmed. **ALWAYS set the 'Status' field to \"scheduled\".**\n- `update_record`: Use when rescheduling or cancelling. **Update the 'Status' field to \"rescheduled\" or \"cancelled\" respectively.**\n\n# WORKFLOWS\n\n## 1. GENERAL INQUIRIES (FAQs)\n- Answer concisely (2-3 sentences).\n- If asked about prices, state the price and immediately ask: \"Would you like to book an appointment for this service?\"\n- If you do not know the answer, offer to connect them to a human staff member.\n\n## 2. BOOKING AN APPOINTMENT (Sequential Flow)\n**IMPORTANT:** Do not ask for all information at once. You must ask these questions one by one, waiting for the user's response between each step.\n\n**Step 1:** Ask which service they want to book.\n**Step 2:** Ask for their preferred date and time.\n**Step 3:** Use `search_all_events` to check availability.\n   - *If unavailable:* Inform them and suggest the closest available slot.\n   - *If available:* Proceed to Step 4.\n**Step 4:** Ask for their Name.\n**Step 5:** Ask for their Email address.\n**Step 6:** Ask for their Phone Number.\n**Step 7:** Confirm details with the user.\n**Step 8:** Perform Actions:\n   - Use `create_booking` on Calendar with the customer's email address as an attendee (this sends them a calendar invite)\n   - Use `create_record` on Airtable (Ensure field 'Status' = \"scheduled\").\n**Step 9:** Send a final confirmation message.\n\n## 3. RESCHEDULING\n**Step 1:** Ask for their phone number.\n**Step 2:** Use `search_record` (Airtable) to retrieve their details and Event ID.\n**Step 3:** Confirm the name found with the user (e.g., \"Are you speaking regarding the appointment for [Name]?\").\n**Step 4:** Ask for the new preferred date and time.\n**Step 5:** Use `search_all_events` (Calendar) to ensure the new slot is free.\n**Step 6:** Perform Actions:\n   - Use `create_booking` for the new slot.\n   - Use `delete_booking` to remove the OLD appointment.\n   - Use `update_record` on Airtable with:\n     - New date/time\n     - Status = \"rescheduled\"\n     - Reminder Sent = FALSE (so they get a new reminder).\n   - Use `update_record` on Airtable with the new details and set field 'Status' = \"rescheduled\".\n**Step 7:** Confirm the change to the user.\n\n## 4. CANCELLING\n**Step 1:** Ask for their phone number.\n**Step 2:** Use `search_record` (Airtable) to retrieve details.\n**Step 3:** Confirm the name with the user.\n**Step 4:** Ask if they would like to reschedule instead. If they say no, ask for a reason for cancellation (for feedback purposes).\n**Step 5:** Perform Actions:\n   - Use `delete_booking` (Calendar) using the Event ID.\n   - Use `update_record` (Airtable) to set field 'Status' = \"cancelled\".\n**Step 6:** Confirm the cancellation.\n\n## **AIRTABLE FIELD NAMES (MUST USE EXACTLY):**\nWhen using Airtable tools, these are the exact field names:\n- Customer Name\n- Phone Number\n- Email Address\n- Service\n- Preferred Date\n- Preferred Time\n- Status\n- Event ID\n\n# EDGE CASES & RULES\n1. **Closed Hours:** Never book appointments on Sundays, Mondays, or outside 9 AM - 6 PM.\n2. **Unrelated Topics:** If the user chatters about non-salon topics, politely steer them back: \"I can strictly help with Aura Beauty Hub appointments and inquiries. Can I help you with that?\"\n3. **Missing Info:** Do not trigger a tool until you have all required parameters (Name, Phone, Email, Service, Date/Time).\n\n# TONE & STYLE\n- Warm, professional, and efficient.\n- Use Nigerian English naturally (e.g., use \"₦\" for currency).\n- Always end a resolved interaction by asking: \"Is there anything else I can help you with?\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        448,
+        16
+      ],
+      "id": "c78056a8-8a7e-48b8-a1c6-01635fc81c7f",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.message.call.id }}",
+        "tableName": "=n8n_chat_histories"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        112,
+        352
+      ],
+      "id": "3b81c554-3032-4ff4-9d4b-2492ef2c2e5b",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "v3DhNdZxOzQ2q37v",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appL07RaeHKJ9ytlA",
+          "mode": "list",
+          "cachedResultName": "BeniX Technology",
+          "cachedResultUrl": "https://airtable.com/appL07RaeHKJ9ytlA"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljuN4c8EGaR1U6p",
+          "mode": "list",
+          "cachedResultName": "Customer Booking",
+          "cachedResultUrl": "https://airtable.com/appL07RaeHKJ9ytlA/tbljuN4c8EGaR1U6p"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Customer Name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Customer_Name', ``, 'string') }}",
+            "Phone Number": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Phone_Number', ``, 'string') }}",
+            "Service": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Service', ``, 'json') }}",
+            "Preferred Date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Preferred_Date', `The appointment date`, 'string') }}",
+            "Preferred Time": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Preferred_Time', `The appointment Time`, 'string') }}",
+            "Email Address": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Email_Address', ``, 'string') }}",
+            "Event ID": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', `This is gotten after the appointment has been booked`, 'string') }}",
+            "Status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Status', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Customer Name",
+              "displayName": "Customer Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Phone Number",
+              "displayName": "Phone Number",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Service",
+              "displayName": "Service",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Preferred Date",
+              "displayName": "Preferred Date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Preferred Time",
+              "displayName": "Preferred Time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Event ID",
+              "displayName": "Event ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Reminder Sent",
+              "displayName": "Reminder Sent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.1,
+      "position": [
+        1168,
+        400
+      ],
+      "id": "22a857f8-0082-4ab2-9c44-210e4085386f",
+      "name": "Create a record in Airtable",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7Xu5fH49zo5z1Evh",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "appL07RaeHKJ9ytlA",
+          "mode": "list",
+          "cachedResultName": "BeniX Technology",
+          "cachedResultUrl": "https://airtable.com/appL07RaeHKJ9ytlA"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljuN4c8EGaR1U6p",
+          "mode": "list",
+          "cachedResultName": "Customer Booking",
+          "cachedResultUrl": "https://airtable.com/appL07RaeHKJ9ytlA/tbljuN4c8EGaR1U6p"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('id__using_to_match_', ``, 'string') }}",
+            "Status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Status', ``, 'string') }}",
+            "Preferred Date": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Preferred_Date', ``, 'string') }}",
+            "Event ID": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', ``, 'string') }}",
+            "Preferred Time": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Preferred_Time', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Customer Name",
+              "displayName": "Customer Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Phone Number",
+              "displayName": "Phone Number",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Service",
+              "displayName": "Service",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Preferred Date",
+              "displayName": "Preferred Date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Preferred Time",
+              "displayName": "Preferred Time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Event ID",
+              "displayName": "Event ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Reminder Sent",
+              "displayName": "Reminder Sent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.1,
+      "position": [
+        1024,
+        400
+      ],
+      "id": "979ddbc9-e6c3-479f-a28a-5e5d14de9ece",
+      "name": "Update record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7Xu5fH49zo5z1Evh",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "ajosiah127@gmail.com",
+          "mode": "list",
+          "cachedResultName": "ajosiah127@gmail.com"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        400
+      ],
+      "id": "86771cd0-add7-413e-a341-2f2abbdaeadf",
+      "name": "Delete Booking",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "L78bMsD5gfywLQ6z",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "ajosiah127@gmail.com",
+          "mode": "list",
+          "cachedResultName": "ajosiah127@gmail.com"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        400
+      ],
+      "id": "4bbf657e-fbe2-49a7-ae88-a79820e6ef9a",
+      "name": "Search all event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "L78bMsD5gfywLQ6z",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "ajosiah127@gmail.com",
+          "mode": "list",
+          "cachedResultName": "ajosiah127@gmail.com"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', ``, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', ``, 'string') }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('attendees0_Attendees', `Send the invite to the attendee using the collected email address`, 'string') }}"
+          ],
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', ``, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', `Add the name of the customer, the service to be offered and the phone number`, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        384
+      ],
+      "id": "b1aab97f-081a-4a69-a487-8bf89ba5a7d5",
+      "name": "Create booking",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "L78bMsD5gfywLQ6z",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appL07RaeHKJ9ytlA",
+          "mode": "list",
+          "cachedResultName": "BeniX Technology",
+          "cachedResultUrl": "https://airtable.com/appL07RaeHKJ9ytlA"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljuN4c8EGaR1U6p",
+          "mode": "list",
+          "cachedResultName": "Customer Booking",
+          "cachedResultUrl": "https://airtable.com/appL07RaeHKJ9ytlA/tbljuN4c8EGaR1U6p"
+        },
+        "filterByFormula": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Filter_By_Formula', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.1,
+      "position": [
+        848,
+        400
+      ],
+      "id": "0fd517ef-1073-460b-8500-97a8289b79de",
+      "name": "Search records",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7Xu5fH49zo5z1Evh",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "=Use the tool to think about something. It will not obtain new information or change the database, but just append the thought to the log. Use it when complex reasoning or some cache memory is needed."
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1.1,
+      "position": [
+        1312,
+        416
+      ],
+      "id": "e325755d-253a-4612-9da8-6f328d731c32",
+      "name": "Think"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mockingjay",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        144,
+        16
+      ],
+      "id": "c0d3bb5a-b469-4323-9985-af53da5c4295",
+      "name": "Webhook",
+      "webhookId": "522dc9de-fd04-4481-9aba-8e7b0ee281a4"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"results\": [\n    {\n      \"toolCallId\": \"{{ $('Webhook').item.json.body.message.toolCalls[0].id }}\",\n      \"result\": {{ JSON.stringify($('AI Agent').item.json.output) }}\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        864,
+        16
+      ],
+      "id": "26ca6e9d-b37d-48ef-92e3-f95de8ae3429",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -160,
+        304
+      ],
+      "id": "ebf84125-456a-4d10-af12-21065f874e44",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "paNMTxJXWBq1NF6S",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "daniel0.app.n8n.cloud",
+            "user-agent": "axios/1.8.3",
+            "content-length": "20430",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, br",
+            "baggage": "sentry-environment=production,sentry-public_key=a0021577936aec367b16615ad816c078,sentry-trace_id=7f9e4bc72d8a438781eff2134ac7c5f9",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "35.93.122.227",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "9be5b28284d4ff16-PDX",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "cookie": "callId=019bc1d3-9028-7115-ab7f-7d35738e54a0",
+            "sentry-trace": "7f9e4bc72d8a438781eff2134ac7c5f9-95669c37fbdd9f07",
+            "x-call-id": "019bc1d3-9028-7115-ab7f-7d35738e54a0",
+            "x-forwarded-for": "35.93.122.227, 172.68.174.250",
+            "x-forwarded-host": "daniel0.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-37-d47f5fc8c-wzt5x",
+            "x-is-trusted": "yes",
+            "x-real-ip": "35.93.122.227",
+            "x-vapi-secret": ""
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "message": {
+              "timestamp": 1768483507446,
+              "type": "tool-calls",
+              "toolCalls": [
+                {
+                  "id": "call_vk1RSJMQGTv30TqxlHptigVT",
+                  "type": "function",
+                  "function": {
+                    "name": "aura_beauty_assistant",
+                    "arguments": {
+                      "user_query": "My email address is Daniel at Gmail dot com. Book a massage appointment for me at 3 PM today."
+                    }
+                  },
+                  "isPrecededByText": true
+                }
+              ],
+              "toolCallList": [
+                {
+                  "id": "call_vk1RSJMQGTv30TqxlHptigVT",
+                  "type": "function",
+                  "function": {
+                    "name": "aura_beauty_assistant",
+                    "arguments": {
+                      "user_query": "My email address is Daniel at Gmail dot com. Book a massage appointment for me at 3 PM today."
+                    }
+                  },
+                  "isPrecededByText": true
+                }
+              ],
+              "toolWithToolCallList": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "aura_beauty_assistant",
+                    "parameters": {
+                      "type": "object",
+                      "required": [],
+                      "properties": {
+                        "user_query": {
+                          "type": "string",
+                          "default": "",
+                          "description": "The user's exact question or request."
+                        }
+                      }
+                    },
+                    "description": "CRITICAL: Use this tool for EVERY single user query. Do not answer any questions without calling this tool first. This is the only way to access the salon's live database."
+                  },
+                  "server": {
+                    "url": "https://daniel0.app.n8n.cloud/webhook/mockingjay",
+                    "timeoutSeconds": 60
+                  },
+                  "messages": [
+                    {
+                      "type": "request-start",
+                      "contents": [],
+                      "conditions": [],
+                      "blocking": false
+                    }
+                  ],
+                  "toolCall": {
+                    "id": "call_vk1RSJMQGTv30TqxlHptigVT",
+                    "type": "function",
+                    "function": {
+                      "name": "aura_beauty_assistant",
+                      "arguments": {
+                        "user_query": "My email address is Daniel at Gmail dot com. Book a massage appointment for me at 3 PM today."
+                      }
+                    },
+                    "isPrecededByText": true
+                  }
+                }
+              ],
+              "artifact": {
+                "messages": [
+                  {
+                    "role": "system",
+                    "message": "# ROLE You are the Voice Interface for Aura Beauty Hub. You have ZERO autonomy. You are a relay between the caller and our backend system (n8n). You are prohibited from answering questions about bookings, prices, services, or availability using your own internal knowledge.\n\n# THE GOLDEN RULE\n\nNEVER confirm an appointment, price, or detail on your own.\n\nEVERY time the user asks a question or makes a request, you MUST call the aura_beauty_assistant tool immediately.\n\nYou MUST wait for the tool's response before giving the caller any information.\n\nOnce the tool responds, read the result to the user exactly as provided.\n\n# OPERATIONAL PROTOCOL\n\nUser Input: Any mention of booking, checking prices, location, or general inquiries.\n\nAction: Call aura_beauty_assistant with the argument user_query containing the user's exact words.\n\nWhile Waiting: Use a short filler phrase like \"One moment while I check that for you...\" or \"Let me look that up in our system...\"\n\nThe Response: Only report what th...",
+                    "time": 1768483426576,
+                    "secondsFromStart": 0
+                  },
+                  {
+                    "role": "bot",
+                    "message": "Thank you for calling Aura Beauty Hub. This is Riley, your scheduling assistant. How may I help you today?",
+                    "time": 1768483428584,
+                    "endTime": 1768483433884,
+                    "secondsFromStart": 1.84,
+                    "duration": 4560,
+                    "source": ""
+                  },
+                  {
+                    "role": "user",
+                    "message": "Hello. I want to book an appointment today.",
+                    "time": 1768483435344,
+                    "endTime": 1768483437424,
+                    "secondsFromStart": 8.6,
+                    "duration": 2080,
+                    "metadata": {
+                      "wordLevelConfidence": [
+                        {
+                          "word": "hello",
+                          "start": 8.6,
+                          "end": 9.16,
+                          "confidence": 0.99853516,
+                          "punctuated_word": "Hello."
+                        },
+                        {
+                          "word": "i",
+                          "start": 9.16,
+                          "end": 9.32,
+                          "confidence": 1,
+                          "punctuated_word": "I"
+                        },
+                        {
+                          "word": "want",
+                          "start": 9.32,
+                          "end": 9.48,
+                          "confidence": 1,
+                          "punctuated_word": "want"
+                        },
+                        {
+                          "word": "to",
+                          "start": 9.48,
+                          "end": 9.559999,
+                          "confidence": 0.99902344,
+                          "punctuated_word": "to"
+                        },
+                        {
+                          "word": "book",
+                          "start": 9.559999,
+                          "end": 9.719999,
+                          "confidence": 1,
+                          "punctuated_word": "book"
+                        },
+                        {
+                          "word": "an",
+                          "start": 9.719999,
+                          "end": 9.88,
+                          "confidence": 0.99902344,
+                          "punctuated_word": "an"
+                        },
+                        {
+                          "word": "appointment",
+                          "start": 9.88,
+                          "end": 10.28,
+                          "confidence": 1,
+                          "punctuated_word": "appointment"
+                        },
+                        {
+                          "word": "today",
+                          "start": 10.28,
+                          "end": 10.68,
+                          "confidence": 0.9616699,
+                          "punctuated_word": "today."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "Lovely, please.",
+                    "time": 1768483443024,
+                    "endTime": 1768483443984,
+                    "secondsFromStart": 16.28,
+                    "duration": 960,
+                    "source": ""
+                  },
+                  {
+                    "toolCalls": [
+                      {
+                        "id": "call_HhoucoITSBrFfhXQCJKrBZUq",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"I want to book an appointment today.\"\n}"
+                        }
+                      }
+                    ],
+                    "role": "tool_calls",
+                    "message": "",
+                    "time": 1768483445205,
+                    "secondsFromStart": 18.461
+                  },
+                  {
+                    "role": "bot",
+                    "message": "For example,",
+                    "time": 1768483447274,
+                    "endTime": 1768483447834,
+                    "secondsFromStart": 20.53,
+                    "duration": 560,
+                    "source": ""
+                  },
+                  {
+                    "role": "tool_call_result",
+                    "time": 1768483448244,
+                    "secondsFromStart": 21.5,
+                    "name": "aura_beauty_assistant",
+                    "result": "Lovely! Please, which service would you like to book for today? (For example: haircut, manicure, pedicure, massage, hair services, or makeup)",
+                    "metadata": {},
+                    "toolCallId": "call_HhoucoITSBrFfhXQCJKrBZUq"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "haircut, manicure, pedicure, massage, hair services, or makeup.",
+                    "time": 1768483448384,
+                    "endTime": 1768483451984,
+                    "secondsFromStart": 21.64,
+                    "duration": 3600,
+                    "source": ""
+                  },
+                  {
+                    "role": "user",
+                    "message": "I want to book for a massage",
+                    "time": 1768483453884,
+                    "endTime": 1768483455964,
+                    "secondsFromStart": 27.14,
+                    "duration": 2080,
+                    "metadata": {
+                      "wordLevelConfidence": [
+                        {
+                          "word": "i",
+                          "start": 27.14,
+                          "end": 27.46,
+                          "confidence": 0.98828125,
+                          "punctuated_word": "I"
+                        },
+                        {
+                          "word": "want",
+                          "start": 27.46,
+                          "end": 27.7,
+                          "confidence": 0.99902344,
+                          "punctuated_word": "want"
+                        },
+                        {
+                          "word": "to",
+                          "start": 27.7,
+                          "end": 27.86,
+                          "confidence": 0.9970703,
+                          "punctuated_word": "to"
+                        },
+                        {
+                          "word": "book",
+                          "start": 27.86,
+                          "end": 28.26,
+                          "confidence": 1,
+                          "punctuated_word": "book"
+                        },
+                        {
+                          "word": "for",
+                          "start": 28.26,
+                          "end": 28.58,
+                          "confidence": 0.99902344,
+                          "punctuated_word": "for"
+                        },
+                        {
+                          "word": "a",
+                          "start": 28.58,
+                          "end": 28.74,
+                          "confidence": 0.99902344,
+                          "punctuated_word": "a"
+                        },
+                        {
+                          "word": "massage",
+                          "start": 28.74,
+                          "end": 29.22,
+                          "confidence": 1,
+                          "punctuated_word": "massage"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "Our available slots are between 9 AM and 6 PM.",
+                    "time": 1768483463733.998,
+                    "endTime": 1768483466213.997,
+                    "secondsFromStart": 36.989998046875,
+                    "duration": 2479.9990234375,
+                    "source": ""
+                  },
+                  {
+                    "toolCalls": [
+                      {
+                        "id": "call_D1Ih8xg3l1HjrcboIFmhTmZI",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"I want to book for a massage today.\"\n}"
+                        }
+                      }
+                    ],
+                    "role": "tool_calls",
+                    "message": "",
+                    "time": 1768483465971,
+                    "secondsFromStart": 39.227
+                  },
+                  {
+                    "role": "bot",
+                    "message": "What time today would you prefer to come in for your massage?",
+                    "time": 1768483466624,
+                    "endTime": 1768483469104,
+                    "secondsFromStart": 39.88,
+                    "duration": 2480,
+                    "source": ""
+                  },
+                  {
+                    "role": "tool_call_result",
+                    "time": 1768483469199,
+                    "secondsFromStart": 42.455,
+                    "name": "aura_beauty_assistant",
+                    "result": "Great choice! What time today would you prefer to come in for your massage? Our available slots are between 9:00 AM and 6:00 PM.",
+                    "metadata": {},
+                    "toolCallId": "call_D1Ih8xg3l1HjrcboIFmhTmZI"
+                  },
+                  {
+                    "role": "user",
+                    "message": "Let's make it 3 PM today.",
+                    "time": 1768483470974,
+                    "endTime": 1768483472733.998,
+                    "secondsFromStart": 44.23,
+                    "duration": 1759.998046875,
+                    "metadata": {
+                      "wordLevelConfidence": [
+                        {
+                          "word": "let's",
+                          "start": 44.23,
+                          "end": 44.629997,
+                          "confidence": 0.96118164,
+                          "punctuated_word": "Let's"
+                        },
+                        {
+                          "word": "make",
+                          "start": 44.629997,
+                          "end": 44.87,
+                          "confidence": 1,
+                          "punctuated_word": "make"
+                        },
+                        {
+                          "word": "it",
+                          "start": 44.87,
+                          "end": 45.03,
+                          "confidence": 1,
+                          "punctuated_word": "it"
+                        },
+                        {
+                          "word": "3",
+                          "start": 45.03,
+                          "end": 45.35,
+                          "confidence": 0.99902344,
+                          "punctuated_word": "3"
+                        },
+                        {
+                          "word": "pm",
+                          "start": 45.35,
+                          "end": 45.67,
+                          "confidence": 0.9951172,
+                          "punctuated_word": "PM"
+                        },
+                        {
+                          "word": "today",
+                          "start": 45.67,
+                          "end": 45.989998,
+                          "confidence": 0.96118164,
+                          "punctuated_word": "today."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "1 moment while I check that for you. Please, can I have your full name to continue with the booking for your",
+                    "time": 1768483474823.998,
+                    "endTime": 1768483481393.998,
+                    "secondsFromStart": 48.079998046875,
+                    "duration": 4320,
+                    "source": ""
+                  },
+                  {
+                    "toolCalls": [
+                      {
+                        "id": "call_KxL1das02RrHxgcyJyd72wkP",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"I want to book a massage appointment for 3 PM today.\"\n}"
+                        }
+                      }
+                    ],
+                    "role": "tool_calls",
+                    "message": "",
+                    "time": 1768483480677,
+                    "secondsFromStart": 53.933
+                  },
+                  {
+                    "role": "bot",
+                    "message": "3 PM massage today?",
+                    "time": 1768483481564,
+                    "endTime": 1768483482764,
+                    "secondsFromStart": 54.82,
+                    "duration": 1200,
+                    "source": ""
+                  },
+                  {
+                    "role": "tool_call_result",
+                    "time": 1768483484143,
+                    "secondsFromStart": 57.399,
+                    "name": "aura_beauty_assistant",
+                    "result": "Thank you! Please, can I have your full name to continue with the booking for your 3 PM massage today?",
+                    "metadata": {},
+                    "toolCallId": "call_KxL1das02RrHxgcyJyd72wkP"
+                  },
+                  {
+                    "role": "user",
+                    "message": "My name is Daniel.",
+                    "time": 1768483484594,
+                    "endTime": 1768483485634,
+                    "secondsFromStart": 57.85,
+                    "duration": 1040,
+                    "metadata": {
+                      "wordLevelConfidence": [
+                        {
+                          "word": "my",
+                          "start": 57.85,
+                          "end": 58.17,
+                          "confidence": 0.97314453,
+                          "punctuated_word": "My"
+                        },
+                        {
+                          "word": "name",
+                          "start": 58.17,
+                          "end": 58.329998,
+                          "confidence": 1,
+                          "punctuated_word": "name"
+                        },
+                        {
+                          "word": "is",
+                          "start": 58.329998,
+                          "end": 58.489998,
+                          "confidence": 1,
+                          "punctuated_word": "is"
+                        },
+                        {
+                          "word": "daniel",
+                          "start": 58.489998,
+                          "end": 58.89,
+                          "confidence": 0.87231445,
+                          "punctuated_word": "Daniel."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "1 moment while I check that for you. Can I have your email address so we can send you a calendar invite for your massage appointment?",
+                    "time": 1768483487174,
+                    "endTime": 1768483494103.99,
+                    "secondsFromStart": 60.43,
+                    "duration": 5599.991943359375,
+                    "source": ""
+                  },
+                  {
+                    "toolCalls": [
+                      {
+                        "id": "call_Cskcor4bLvPWcmoodOE10lks",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"My name is Daniel. Book a massage appointment for me at 3 PM today.\"\n}"
+                        }
+                      }
+                    ],
+                    "role": "tool_calls",
+                    "message": "",
+                    "time": 1768483493182,
+                    "secondsFromStart": 66.438
+                  },
+                  {
+                    "role": "tool_call_result",
+                    "time": 1768483495340,
+                    "secondsFromStart": 68.596,
+                    "name": "aura_beauty_assistant",
+                    "result": "Thank you, Daniel! Can I have your email address so we can send you a calendar invite for your massage appointment?",
+                    "metadata": {},
+                    "toolCallId": "call_Cskcor4bLvPWcmoodOE10lks"
+                  },
+                  {
+                    "role": "user",
+                    "message": "My email address is Daniel at Gmail dot com.",
+                    "time": 1768483496194,
+                    "endTime": 1768483499153.996,
+                    "secondsFromStart": 69.45,
+                    "duration": 2959.99609375,
+                    "metadata": {
+                      "wordLevelConfidence": [
+                        {
+                          "word": "my",
+                          "start": 69.45,
+                          "end": 69.77,
+                          "confidence": 0.83740234,
+                          "punctuated_word": "My"
+                        },
+                        {
+                          "word": "email",
+                          "start": 69.77,
+                          "end": 70.09,
+                          "confidence": 1,
+                          "punctuated_word": "email"
+                        },
+                        {
+                          "word": "address",
+                          "start": 70.09,
+                          "end": 70.409996,
+                          "confidence": 1,
+                          "punctuated_word": "address"
+                        },
+                        {
+                          "word": "is",
+                          "start": 70.409996,
+                          "end": 70.65,
+                          "confidence": 1,
+                          "punctuated_word": "is"
+                        },
+                        {
+                          "word": "daniel",
+                          "start": 70.65,
+                          "end": 71.21,
+                          "confidence": 0.78271484,
+                          "punctuated_word": "Daniel"
+                        },
+                        {
+                          "word": "at",
+                          "start": 71.21,
+                          "end": 71.61,
+                          "confidence": 1,
+                          "punctuated_word": "at"
+                        },
+                        {
+                          "word": "gmail",
+                          "start": 71.61,
+                          "end": 71.93,
+                          "confidence": 0.9951172,
+                          "punctuated_word": "Gmail"
+                        },
+                        {
+                          "word": "dot",
+                          "start": 71.93,
+                          "end": 72.25,
+                          "confidence": 0.99902344,
+                          "punctuated_word": "dot"
+                        },
+                        {
+                          "word": "com",
+                          "start": 72.25,
+                          "end": 72.409996,
+                          "confidence": 0.9926758,
+                          "punctuated_word": "com."
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "toolCalls": [
+                      {
+                        "id": "call_vk1RSJMQGTv30TqxlHptigVT",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"My email address is Daniel at Gmail dot com. Book a massage appointment for me at 3 PM today.\"\n}"
+                        }
+                      }
+                    ],
+                    "role": "tool_calls",
+                    "message": "",
+                    "time": 1768483507444,
+                    "secondsFromStart": 80.7
+                  }
+                ],
+                "messagesOpenAIFormatted": [
+                  {
+                    "role": "system",
+                    "content": "# ROLE You are the Voice Interface for Aura Beauty Hub. You have ZERO autonomy. You are a relay between the caller and our backend system (n8n). You are prohibited from answering questions about bookings, prices, services, or availability using your own internal knowledge.\n\n# THE GOLDEN RULE\n\nNEVER confirm an appointment, price, or detail on your own.\n\nEVERY time the user asks a question or makes a request, you MUST call the aura_beauty_assistant tool immediately.\n\nYou MUST wait for the tool's response before giving the caller any information.\n\nOnce the tool responds, read the result to the user exactly as provided.\n\n# OPERATIONAL PROTOCOL\n\nUser Input: Any mention of booking, checking prices, location, or general inquiries.\n\nAction: Call aura_beauty_assistant with the argument user_query containing the user's exact words.\n\nWhile Waiting: Use a short filler phrase like \"One moment while I check that for you...\" or \"Let me look that up in our system...\"\n\nThe Response: Only report what th..."
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "Thank you for calling Aura Beauty Hub. This is Riley, your scheduling assistant. How may I help you today?"
+                  },
+                  {
+                    "role": "user",
+                    "content": "Hello. I want to book an appointment today."
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "Lovely, please.",
+                    "tool_calls": [
+                      {
+                        "id": "call_HhoucoITSBrFfhXQCJKrBZUq",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"I want to book an appointment today.\"\n}"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "role": "tool",
+                    "tool_call_id": "call_HhoucoITSBrFfhXQCJKrBZUq",
+                    "content": "Lovely! Please, which service would you like to book for today? (For example: haircut, manicure, pedicure, massage, hair services, or makeup)"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "For example, haircut, manicure, pedicure, massage, hair services, or makeup."
+                  },
+                  {
+                    "role": "user",
+                    "content": "I want to book for a massage"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "Our available slots are between 9 AM and 6 PM.",
+                    "tool_calls": [
+                      {
+                        "id": "call_D1Ih8xg3l1HjrcboIFmhTmZI",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"I want to book for a massage today.\"\n}"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "role": "tool",
+                    "tool_call_id": "call_D1Ih8xg3l1HjrcboIFmhTmZI",
+                    "content": "Great choice! What time today would you prefer to come in for your massage? Our available slots are between 9:00 AM and 6:00 PM."
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "What time today would you prefer to come in for your massage?"
+                  },
+                  {
+                    "role": "user",
+                    "content": "Let's make it 3 PM today."
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "1 moment while I check that for you. Please, can I have your full name to continue with the booking for your",
+                    "tool_calls": [
+                      {
+                        "id": "call_KxL1das02RrHxgcyJyd72wkP",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"I want to book a massage appointment for 3 PM today.\"\n}"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "role": "tool",
+                    "tool_call_id": "call_KxL1das02RrHxgcyJyd72wkP",
+                    "content": "Thank you! Please, can I have your full name to continue with the booking for your 3 PM massage today?"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "3 PM massage today?"
+                  },
+                  {
+                    "role": "user",
+                    "content": "My name is Daniel."
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "1 moment while I check that for you. Can I have your email address so we can send you a calendar invite for your massage appointment?",
+                    "tool_calls": [
+                      {
+                        "id": "call_Cskcor4bLvPWcmoodOE10lks",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"My name is Daniel. Book a massage appointment for me at 3 PM today.\"\n}"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "role": "tool",
+                    "tool_call_id": "call_Cskcor4bLvPWcmoodOE10lks",
+                    "content": "Thank you, Daniel! Can I have your email address so we can send you a calendar invite for your massage appointment?"
+                  },
+                  {
+                    "role": "user",
+                    "content": "My email address is Daniel at Gmail dot com."
+                  },
+                  {
+                    "role": "assistant",
+                    "tool_calls": [
+                      {
+                        "id": "call_vk1RSJMQGTv30TqxlHptigVT",
+                        "type": "function",
+                        "function": {
+                          "name": "aura_beauty_assistant",
+                          "arguments": "{\n  \"user_query\": \"My email address is Daniel at Gmail dot com. Book a massage appointment for me at 3 PM today.\"\n}"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "role": "tool",
+                    "tool_call_id": "call_vk1RSJMQGTv30TqxlHptigVT",
+                    "content": "Tool Result Still Pending But Proceed Further If Possible."
+                  }
+                ]
+              },
+              "call": {
+                "id": "019bc1d3-9028-7115-ab7f-7d35738e54a0",
+                "orgId": "67829338-64cf-41b5-a340-11b88f8d5eb4",
+                "createdAt": "2026-01-15T13:23:46.344Z",
+                "updatedAt": "2026-01-15T13:23:46.344Z",
+                "type": "webCall",
+                "cost": 0,
+                "monitor": {
+                  "listenUrl": "wss://phone-call-websocket.aws-us-west-2-backend-production2.vapi.ai/019bc1d3-9028-7115-ab7f-7d35738e54a0/listen",
+                  "controlUrl": "https://phone-call-websocket.aws-us-west-2-backend-production2.vapi.ai/019bc1d3-9028-7115-ab7f-7d35738e54a0/control"
+                },
+                "transport": {
+                  "conversationType": "voice",
+                  "provider": "daily",
+                  "videoRecordingEnabled": false,
+                  "assistantVideoEnabled": false,
+                  "roomDeleteOnUserLeaveEnabled": true,
+                  "callUrl": "https://vapi.daily.co/iLAINGLGzx6mLs5oRoC3"
+                },
+                "webCallUrl": "https://vapi.daily.co/iLAINGLGzx6mLs5oRoC3",
+                "status": "queued",
+                "assistantId": "b4075534-63ec-4c6b-9601-67377e2c2d91",
+                "assistantOverrides": {
+                  "clientMessages": [
+                    "transcript",
+                    "hang",
+                    "metadata",
+                    "tool-calls",
+                    "tool-calls-result",
+                    "tool.completed",
+                    "transfer-update",
+                    "user-interrupted",
+                    "status-update",
+                    "assistant.started"
+                  ],
+                  "variableValues": {}
+                }
+              },
+              "assistant": {
+                "id": "b4075534-63ec-4c6b-9601-67377e2c2d91",
+                "orgId": "67829338-64cf-41b5-a340-11b88f8d5eb4",
+                "name": "Riley",
+                "voice": {
+                  "voiceId": "Elliot",
+                  "provider": "vapi"
+                },
+                "createdAt": "2026-01-06T10:11:19.049Z",
+                "updatedAt": "2026-01-10T10:33:14.282Z",
+                "model": {
+                  "model": "gpt-4.1",
+                  "toolIds": [
+                    "3f2293d0-c33d-49dd-a71b-e8192dcce89a"
+                  ],
+                  "messages": [
+                    {
+                      "role": "system",
+                      "content": "# ROLE You are the Voice Interface for Aura Beauty Hub. You have ZERO autonomy. You are a relay between the caller and our backend system (n8n). You are prohibited from answering questions about bookings, prices, services, or availability using your own internal knowledge.\n\n# THE GOLDEN RULE\n\nNEVER confirm an appointment, price, or detail on your own.\n\nEVERY time the user asks a question or makes a request, you MUST call the aura_beauty_assistant tool immediately.\n\nYou MUST wait for the tool's response before giving the caller any information.\n\nOnce the tool responds, read the result to the user exactly as provided.\n\n# OPERATIONAL PROTOCOL\n\nUser Input: Any mention of booking, checking prices, location, or general inquiries.\n\nAction: Call aura_beauty_assistant with the argument user_query containing the user's exact words.\n\nWhile Waiting: Use a short filler phrase like \"One moment while I check that for you...\" or \"Let me look that up in our system...\"\n\nThe Response: Only report what the tool returns. If the tool says a slot is full, say it's full. If the tool says a slot is available, only then can you confirm it.\n\n# CONVERSATION STYLE\n\nTone: Professional, Nigerian English, helpful but strictly dependent on the system.\n\nConstraint: Do not make small talk. If a user asks for 9 AM, do not say \"Let me see if 9 AM is open,\" just call the tool."
+                    }
+                  ],
+                  "provider": "openai",
+                  "temperature": 0.5,
+                  "tools": [
+                    {
+                      "id": "3f2293d0-c33d-49dd-a71b-e8192dcce89a",
+                      "createdAt": "2026-01-06T11:07:50.003Z",
+                      "updatedAt": "2026-01-11T19:49:50.104Z",
+                      "type": "function",
+                      "function": {
+                        "name": "aura_beauty_assistant",
+                        "parameters": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {
+                            "user_query": {
+                              "type": "string",
+                              "default": "",
+                              "description": "The user's exact question or request."
+                            }
+                          }
+                        },
+                        "description": "CRITICAL: Use this tool for EVERY single user query. Do not answer any questions without calling this tool first. This is the only way to access the salon's live database."
+                      },
+                      "messages": [
+                        {
+                          "type": "request-start",
+                          "blocking": false
+                        }
+                      ],
+                      "orgId": "67829338-64cf-41b5-a340-11b88f8d5eb4",
+                      "server": {
+                        "url": "https://daniel0.app.n8n.cloud/webhook/mockingjay",
+                        "timeoutSeconds": 60
+                      }
+                    }
+                  ]
+                },
+                "firstMessage": "Thank you for calling Aura Beauty Hub. This is Riley, your scheduling assistant. How may I help you today?",
+                "voicemailMessage": "Hello, this is Riley from Wellness Partners. I'm calling about your appointment. Please call us back at your earliest convenience so we can confirm your scheduling details.",
+                "endCallFunctionEnabled": true,
+                "endCallMessage": "Thank you for scheduling with Aura Hub. Your appointment is confirmed, and we look forward to seeing you soon. Have a wonderful day!",
+                "transcriber": {
+                  "model": "nova-3",
+                  "language": "en",
+                  "provider": "deepgram",
+                  "endpointing": 150
+                },
+                "clientMessages": [
+                  "conversation-update",
+                  "function-call",
+                  "hang",
+                  "model-output",
+                  "speech-update",
+                  "status-update",
+                  "transfer-update",
+                  "transcript",
+                  "tool-calls",
+                  "user-interrupted",
+                  "voice-input",
+                  "workflow.node.started",
+                  "assistant.started",
+                  "metadata",
+                  "tool-calls-result",
+                  "tool.completed"
+                ],
+                "serverMessages": [
+                  "conversation-update",
+                  "end-of-call-report",
+                  "function-call",
+                  "hang",
+                  "speech-update",
+                  "status-update",
+                  "tool-calls",
+                  "transfer-destination-request",
+                  "handoff-destination-request",
+                  "user-interrupted",
+                  "assistant.started"
+                ],
+                "endCallPhrases": [
+                  "goodbye",
+                  "talk to you soon"
+                ],
+                "hipaaEnabled": false,
+                "analysisPlan": {
+                  "summaryPlan": {
+                    "enabled": false
+                  },
+                  "successEvaluationPlan": {
+                    "enabled": false
+                  }
+                },
+                "backgroundDenoisingEnabled": false,
+                "artifactPlan": {
+                  "structuredOutputIds": [
+                    "247367bd-e51c-4dad-9ff4-b8fb3ce617c8",
+                    "f1bf67c9-445e-4f59-a399-e66b86729a03",
+                    "3206eafd-a695-4c59-9d83-7f1c24989229",
+                    "1fc78761-3bdb-4309-9b19-9f6d371a5217",
+                    "5e016deb-c06b-4993-8dde-26a7ac2ada40"
+                  ]
+                },
+                "startSpeakingPlan": {
+                  "waitSeconds": 0.4,
+                  "smartEndpointingEnabled": "livekit"
+                },
+                "compliancePlan": {
+                  "pciEnabled": false,
+                  "hipaaEnabled": false
+                },
+                "variableValues": {}
+              }
+            }
+          },
+          "webhookUrl": "https://daniel0.app.n8n.cloud/webhook/mockingjay",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a record in Airtable": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update record": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search all event": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search records": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Think": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "8f39950f-532f-42cc-863d-778fedc17977",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6834007c3e6e35db27b810ff26fa0d0b7d5ef18fe5de7226100cda996211e5c"
+  },
+  "id": "zx_HZftGZIqvFpBXNrLkB",
+  "tags": []
+}
